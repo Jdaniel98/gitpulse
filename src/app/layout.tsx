@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Sidebar } from "@/components/layout/sidebar";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
+import { CommandPalette } from "@/components/command-palette";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
@@ -47,6 +48,7 @@ export default function RootLayout({
               </main>
             </div>
             <KeyboardShortcuts />
+            <CommandPalette />
             <Toaster
               theme="system"
               position="bottom-right"

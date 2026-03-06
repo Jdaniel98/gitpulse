@@ -1,6 +1,6 @@
 "use client";
 
-import { Moon, Sun, Keyboard } from "lucide-react";
+import { Moon, Sun, Keyboard, Search } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,22 @@ export function Header({ title }: { title: string }) {
         <h2 className="text-lg font-semibold">{title}</h2>
       </div>
       <div className="flex items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              className="hidden h-8 gap-2 rounded-lg border border-border bg-muted/50 px-3 text-xs text-muted-foreground sm:flex"
+              onClick={() => window.dispatchEvent(new Event("open-command-palette"))}
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span>Search...</span>
+              <kbd className="pointer-events-none rounded border border-border bg-background px-1 font-mono text-[10px]">
+                ⌘K
+              </kbd>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Command palette (⌘K)</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
