@@ -301,6 +301,49 @@ export function getLastWeekCount(): number {
   return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE created_at >= ? AND created_at < ?").get(startOfLastWeek.toISOString(), endOfLastWeek.toISOString()) as { count: number }).count;
 }
 
+export function getMonthlyCounts(months: number = 12): { month: string; count: number }[] {
+  const db = getDb();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - months);
+  const startStr = startDate.toISOString().split("T")[0];
+  return db.prepare(`
+    SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count
+    FROM contributions
+    WHERE created_at >= ?
+    GROUP BY month
+    ORDER BY month ASC
+  `).all(startStr) as { month: string; count: number }[];
+}
+
+export function getHourOfDayCounts(): { hour: number; count: number }[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
+    FROM contributions
+    GROUP BY hour
+    ORDER BY hour
+  `).all() as { hour: number; count: number }[];
+
+  return Array.from({ length: 24 }, (_, i) => ({
+    hour: i,
+    count: rows.find((r) => r.hour === i)?.count || 0,
+  }));
+}
+
+export function getDailyCountsByType(days: number = 365): { date: string; type: string; count: number }[] {
+  const db = getDb();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startStr = startDate.toISOString().split("T")[0];
+  return db.prepare(`
+    SELECT DATE(created_at) as date, type, COUNT(*) as count
+    FROM contributions
+    WHERE created_at >= ?
+    GROUP BY DATE(created_at), type
+    ORDER BY date ASC
+  `).all(startStr) as { date: string; type: string; count: number }[];
+}
+
 export function getContributionsForExport(options: {
   type?: string;
   repo?: string;

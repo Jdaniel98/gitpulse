@@ -7,6 +7,9 @@ import {
   getTotalCount,
   getWeekCount,
   getLastWeekCount,
+  getMonthlyCounts,
+  getHourOfDayCounts,
+  getDailyCountsByType,
 } from "@/lib/db";
 import type { AnalyticsData, StreakInfo, Insight } from "@/lib/types";
 
@@ -143,15 +146,35 @@ export async function GET() {
   const byType = getTypeCounts();
   const byRepo = getRepoCounts(10);
   const byDayOfWeek = getDayOfWeekCounts();
+  const byHourOfDay = getHourOfDayCounts();
+  const monthly = getMonthlyCounts(12);
   const total = getTotalCount();
   const streak = calculateStreak(daily);
   const insights = generateInsights(daily, byType, byRepo, byDayOfWeek, total, streak);
+
+  // Build daily-by-type data for stacked area chart
+  const rawByType = getDailyCountsByType(365);
+  const typeSet = new Set(rawByType.map((r) => r.type));
+  const dateMap = new Map<string, Record<string, number>>();
+  for (const row of rawByType) {
+    if (!dateMap.has(row.date)) {
+      dateMap.set(row.date, { date: 0 } as unknown as Record<string, number>);
+    }
+    dateMap.get(row.date)![row.type] = row.count;
+  }
+  const dailyByType = [...dateMap.entries()].map(([date, types]) => ({
+    date,
+    ...Object.fromEntries([...typeSet].map((t) => [t, types[t] || 0])),
+  }));
 
   const data: AnalyticsData = {
     daily,
     byType,
     byRepo,
     byDayOfWeek,
+    byHourOfDay,
+    monthly,
+    dailyByType,
     total,
     streak,
     insights,

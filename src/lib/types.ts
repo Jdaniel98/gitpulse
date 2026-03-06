@@ -79,6 +79,9 @@ export interface AnalyticsData {
   byType: TypeCount[];
   byRepo: RepoCount[];
   byDayOfWeek: { day: string; count: number }[];
+  byHourOfDay: { hour: number; count: number }[];
+  monthly: { month: string; count: number }[];
+  dailyByType: { date: string; [key: string]: string | number }[];
   total: number;
   streak: StreakInfo;
   insights: Insight[];
