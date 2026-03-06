@@ -8,7 +8,7 @@ import { useAnalytics } from "@/hooks/use-contributions";
 import { typeColors } from "@/lib/contribution-utils";
 import { typeConfig } from "@/lib/contribution-utils";
 import type { ContributionType } from "@/lib/types";
-import { TrendingUp, TrendingDown, Minus, Lightbulb, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Lightbulb, Clock, GitCompare } from "lucide-react";
 import { PunchCard } from "@/components/analytics/punch-card";
 import {
   BarChart,
@@ -46,6 +46,7 @@ const TIME_RANGES = [
 export default function AnalyticsPage() {
   const { data: analytics, loading } = useAnalytics();
   const [rangeDays, setRangeDays] = useState(30);
+  const [compare, setCompare] = useState(false);
 
   // Filter daily data by selected range
   const filteredDaily = useMemo(() => {
@@ -56,6 +57,23 @@ export default function AnalyticsPage() {
       date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     }));
   }, [analytics, rangeDays]);
+
+  // Build comparison data: current vs previous period
+  const comparisonData = useMemo(() => {
+    if (!analytics || !compare || rangeDays === 0) return null;
+    const allDaily = analytics.daily;
+    const currentSlice = allDaily.slice(-rangeDays);
+    const previousSlice = allDaily.slice(-rangeDays * 2, -rangeDays);
+
+    if (previousSlice.length === 0) return null;
+
+    return currentSlice.map((d, i) => ({
+      label: `Day ${i + 1}`,
+      date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      current: d.count,
+      previous: previousSlice[i]?.count ?? 0,
+    }));
+  }, [analytics, compare, rangeDays]);
 
   // Filter daily-by-type data by range
   const filteredDailyByType = useMemo(() => {
@@ -184,24 +202,83 @@ export default function AnalyticsPage() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Contribution Trend</CardTitle>
-              <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
-                {TIME_RANGES.map((range) => (
+              <div className="flex items-center gap-2">
+                {rangeDays > 0 && (
                   <Button
-                    key={range.label}
-                    variant={rangeDays === range.days ? "secondary" : "ghost"}
+                    variant={compare ? "secondary" : "ghost"}
                     size="sm"
-                    className="h-7 px-2.5 text-xs"
-                    onClick={() => setRangeDays(range.days)}
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => setCompare(!compare)}
                   >
-                    {range.label}
+                    <GitCompare className="h-3 w-3" />
+                    Compare
                   </Button>
-                ))}
+                )}
+                <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
+                  {TIME_RANGES.map((range) => (
+                    <Button
+                      key={range.label}
+                      variant={rangeDays === range.days ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-7 px-2.5 text-xs"
+                      onClick={() => { setRangeDays(range.days); if (range.days === 0) setCompare(false); }}
+                    >
+                      {range.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
+            {compare && rangeDays > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Comparing current {rangeDays}D vs previous {rangeDays}D
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             {filteredDaily.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">No data yet</p>
+            ) : compare && comparisonData ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={comparisonData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11 }}
+                    className="fill-muted-foreground"
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    className="fill-muted-foreground"
+                    allowDecimals={false}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Line
+                    type="monotone"
+                    dataKey="current"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={comparisonData.length <= 31 ? { r: 3, fill: "#10b981" } : false}
+                    activeDot={{ r: 5 }}
+                    name={`Current ${rangeDays}D`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="previous"
+                    stroke="#6b7280"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    name={`Previous ${rangeDays}D`}
+                  />
+                  <Legend
+                    formatter={(value) => (
+                      <span className="text-xs text-foreground">{value}</span>
+                    )}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={filteredDaily}>
