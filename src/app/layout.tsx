@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Sidebar } from "@/components/layout/sidebar";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 
@@ -41,7 +42,9 @@ export default function RootLayout({
           <TooltipProvider>
             <div className="flex min-h-screen">
               <Sidebar />
-              <main className="flex-1 md:ml-64">{children}</main>
+              <main className="flex-1 md:ml-64">
+                <ErrorBoundary>{children}</ErrorBoundary>
+              </main>
             </div>
             <KeyboardShortcuts />
             <Toaster

@@ -27,6 +27,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  CalendarDays,
+  X,
+  Activity,
 } from "lucide-react";
 import type { Contribution, ContributionType } from "@/lib/types";
 import { typeConfig } from "@/lib/contribution-utils";
@@ -34,6 +37,16 @@ import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { syncGitHub } from "@/components/layout/sidebar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const typeIcons: Record<ContributionType, React.ElementType> = {
   commit: GitCommitHorizontal,
@@ -57,6 +70,9 @@ export default function ActivityPage() {
   const [searchDebounced, setSearchDebounced] = useState("");
   const [repos, setRepos] = useState<string[]>([]);
   const [repoFilter, setRepoFilter] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchDebounced(search), 300);
@@ -65,7 +81,7 @@ export default function ActivityPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [typeFilter, searchDebounced, repoFilter]);
+  }, [typeFilter, searchDebounced, repoFilter, startDate, endDate]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -77,6 +93,8 @@ export default function ActivityPage() {
       if (typeFilter !== "all") params.set("type", typeFilter);
       if (searchDebounced) params.set("search", searchDebounced);
       if (repoFilter !== "all") params.set("repo", repoFilter);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
 
       const res = await fetch(`/api/contributions?${params}`);
       const data = await res.json();
@@ -89,7 +107,7 @@ export default function ActivityPage() {
     const handler = () => { setPage(0); fetchData(); };
     window.addEventListener("contributions-updated", handler);
     return () => window.removeEventListener("contributions-updated", handler);
-  }, [page, typeFilter, searchDebounced, repoFilter]);
+  }, [page, typeFilter, searchDebounced, repoFilter, startDate, endDate]);
 
   useEffect(() => {
     fetch("/api/contributions?limit=1000")
@@ -103,17 +121,18 @@ export default function ActivityPage() {
       });
   }, []);
 
-  const handleDelete = async (id: number) => {
-    const item = contributions.find((c) => c.id === id);
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     await fetch("/api/contributions", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id: deleteTarget.id }),
     });
-    setContributions((prev) => prev.filter((c) => c.id !== id));
+    setContributions((prev) => prev.filter((c) => c.id !== deleteTarget.id));
     setTotal((prev) => prev - 1);
     window.dispatchEvent(new Event("contributions-updated"));
-    toast.success(`Deleted "${item?.title || "contribution"}"`);
+    toast.success(`Deleted "${deleteTarget.title}"`);
+    setDeleteTarget(null);
   };
 
   const handleExport = (format: "csv" | "json") => {
@@ -121,6 +140,8 @@ export default function ActivityPage() {
     if (typeFilter !== "all") params.set("type", typeFilter);
     if (searchDebounced) params.set("search", searchDebounced);
     if (repoFilter !== "all") params.set("repo", repoFilter);
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
     window.open(`/api/export?${params}`, "_blank");
     toast.success(`Exporting as ${format.toUpperCase()}`);
   };
@@ -172,6 +193,34 @@ export default function ActivityPage() {
               </SelectContent>
             </Select>
           )}
+          <div className="flex items-center gap-1.5">
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-9 w-[140px] text-xs"
+              placeholder="Start date"
+            />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-9 w-[140px] text-xs"
+              placeholder="End date"
+            />
+            {(startDate || endDate) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => { setStartDate(""); setEndDate(""); }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between">
@@ -200,14 +249,14 @@ export default function ActivityPage() {
             ))}
           </div>
         ) : contributions.length === 0 ? (
-          search || typeFilter !== "all" || repoFilter !== "all" ? (
+          search || typeFilter !== "all" || repoFilter !== "all" || startDate || endDate ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <p className="text-sm text-muted-foreground">No contributions match your filters.</p>
                 <Button
                   variant="link"
                   className="mt-2 text-sm"
-                  onClick={() => { setSearch(""); setTypeFilter("all"); setRepoFilter("all"); }}
+                  onClick={() => { setSearch(""); setTypeFilter("all"); setRepoFilter("all"); setStartDate(""); setEndDate(""); }}
                 >
                   Clear filters
                 </Button>
@@ -248,7 +297,7 @@ export default function ActivityPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDelete(c.id)}
+                            onClick={() => setDeleteTarget({ id: c.id, title: c.title })}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -306,6 +355,27 @@ export default function ActivityPage() {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete contribution?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &ldquo;{deleteTarget?.title}&rdquo;. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

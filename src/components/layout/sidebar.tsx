@@ -10,13 +10,15 @@ import {
   Settings,
   Github,
   RefreshCw,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 
 export const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -48,10 +50,70 @@ export async function syncGitHub() {
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const [syncing, setSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [, setTick] = useState(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const loadLastSynced = useCallback(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        setLastSynced(data.last_synced || null);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadLastSynced();
+  }, [loadLastSynced]);
+
+  // Refresh "X minutes ago" display every 30 seconds
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Auto-sync setup
+  useEffect(() => {
+    const setupAutoSync = async () => {
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        const intervalMinutes = parseInt(data.sync_interval || "0", 10);
+
+        if (intervalRef.current) clearInterval(intervalRef.current);
+
+        if (intervalMinutes > 0) {
+          intervalRef.current = setInterval(() => {
+            syncGitHub().then(() => {
+              setLastSynced(new Date().toISOString());
+            });
+          }, intervalMinutes * 60 * 1000);
+        }
+      } catch {}
+    };
+    setupAutoSync();
+
+    const handler = () => setupAutoSync();
+    window.addEventListener("settings-updated", handler);
+    return () => {
+      window.removeEventListener("settings-updated", handler);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   const handleSync = async () => {
     setSyncing(true);
-    await syncGitHub();
+    const success = await syncGitHub();
+    if (success) {
+      const now = new Date().toISOString();
+      setLastSynced(now);
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ last_synced: now }),
+      });
+    }
     setSyncing(false);
   };
 
@@ -91,7 +153,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="px-3 pb-4">
+      <div className="space-y-2 px-3 pb-4">
         <Button
           variant="outline"
           className="w-full justify-start gap-2"
@@ -101,6 +163,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
           {syncing ? "Syncing..." : "Sync GitHub"}
         </Button>
+        {lastSynced && (
+          <div className="flex items-center gap-1.5 px-1">
+            <Clock className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">
+              Last synced {formatDistanceToNow(new Date(lastSynced), { addSuffix: true })}
+            </span>
+          </div>
+        )}
       </div>
     </>
   );

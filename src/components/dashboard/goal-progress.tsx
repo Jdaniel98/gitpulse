@@ -19,6 +19,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Target, Plus, Trash2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import type { GoalProgress as GoalProgressType } from "@/lib/types";
@@ -28,6 +38,7 @@ export function GoalProgress() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newGoal, setNewGoal] = useState({ label: "", target: "5", period: "daily" });
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
 
   const fetchGoals = async () => {
     const res = await fetch("/api/goals");
@@ -56,13 +67,15 @@ export function GoalProgress() {
     fetchGoals();
   };
 
-  const handleDelete = async (id: string, label: string) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     await fetch("/api/goals", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id: deleteTarget.id }),
     });
-    toast.success(`Goal "${label}" removed`);
+    toast.success(`Goal "${deleteTarget.label}" removed`);
+    setDeleteTarget(null);
     fetchGoals();
   };
 
@@ -163,7 +176,7 @@ export function GoalProgress() {
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(goal.id, goal.label)}
+                    onClick={() => setDeleteTarget({ id: goal.id, label: goal.label })}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -181,6 +194,27 @@ export function GoalProgress() {
           ))
         )}
       </CardContent>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete goal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the goal &ldquo;{deleteTarget?.label}&rdquo;. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

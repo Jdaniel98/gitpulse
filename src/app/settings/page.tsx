@@ -8,7 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Github, Key, ExternalLink } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Github, Key, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
@@ -137,6 +144,51 @@ export default function SettingsPage() {
                 {saving ? "Validating..." : settings.github_username ? "Update Token" : "Connect"}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* Auto-Sync */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <RefreshCw className="h-4 w-4" />
+              Auto-Sync
+            </CardTitle>
+            <CardDescription>
+              Automatically sync GitHub contributions at a regular interval
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Sync Interval</Label>
+              <Select
+                value={settings.sync_interval || "0"}
+                onValueChange={async (value) => {
+                  await fetch("/api/settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sync_interval: value }),
+                  });
+                  setSettings((prev) => ({ ...prev, sync_interval: value }));
+                  window.dispatchEvent(new Event("settings-updated"));
+                  toast.success(value === "0" ? "Auto-sync disabled" : `Auto-sync set to every ${value} minutes`);
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select interval" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Disabled</SelectItem>
+                  <SelectItem value="15">Every 15 minutes</SelectItem>
+                  <SelectItem value="30">Every 30 minutes</SelectItem>
+                  <SelectItem value="60">Every hour</SelectItem>
+                  <SelectItem value="120">Every 2 hours</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Requires a valid GitHub token to be configured above.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
