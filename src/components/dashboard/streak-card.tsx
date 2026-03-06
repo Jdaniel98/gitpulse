@@ -37,7 +37,7 @@ export function StreakCards({ streak }: StreakCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       {cards.map((card) => (
         <Card key={card.title}>
           <CardContent className="flex items-center gap-4 p-5">

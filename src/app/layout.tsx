@@ -3,7 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Sidebar } from "@/components/layout/sidebar";
+import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,8 +41,15 @@ export default function RootLayout({
           <TooltipProvider>
             <div className="flex min-h-screen">
               <Sidebar />
-              <main className="ml-64 flex-1">{children}</main>
+              <main className="flex-1 md:ml-64">{children}</main>
             </div>
+            <KeyboardShortcuts />
+            <Toaster
+              theme="system"
+              position="bottom-right"
+              richColors
+              closeButton
+            />
           </TooltipProvider>
         </ThemeProvider>
       </body>

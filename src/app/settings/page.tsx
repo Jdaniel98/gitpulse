@@ -8,13 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, Github, Key, User, ExternalLink } from "lucide-react";
+import { Github, Key, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
   const [token, setToken] = useState("");
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loadingSettings, setLoadingSettings] = useState(true);
 
@@ -32,8 +31,6 @@ export default function SettingsPage() {
     if (!token.trim()) return;
 
     setSaving(true);
-    setError("");
-    setSuccess(false);
 
     try {
       const res = await fetch("/api/settings", {
@@ -43,9 +40,9 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to save token");
+        toast.error(data.error || "Failed to save token");
       } else {
-        setSuccess(true);
+        toast.success(`Connected as ${data.username}`);
         setToken("");
         setSettings((prev) => ({
           ...prev,
@@ -53,10 +50,9 @@ export default function SettingsPage() {
           github_username: data.username || prev.github_username,
           github_avatar: data.avatar || prev.github_avatar,
         }));
-        setTimeout(() => setSuccess(false), 3000);
       }
     } catch {
-      setError("Failed to save token");
+      toast.error("Failed to save token");
     } finally {
       setSaving(false);
     }
@@ -137,20 +133,9 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
-                <Button type="submit" disabled={saving || !token.trim()}>
-                  {saving ? "Validating..." : settings.github_username ? "Update Token" : "Connect"}
-                </Button>
-                {success && (
-                  <span className="flex items-center gap-1.5 text-sm text-emerald-500">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Connected!
-                  </span>
-                )}
-                {error && (
-                  <span className="text-sm text-destructive">{error}</span>
-                )}
-              </div>
+              <Button type="submit" disabled={saving || !token.trim()}>
+                {saving ? "Validating..." : settings.github_username ? "Update Token" : "Connect"}
+              </Button>
             </form>
           </CardContent>
         </Card>

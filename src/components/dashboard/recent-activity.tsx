@@ -11,6 +11,7 @@ import {
   GitFork,
   PenLine,
   ExternalLink,
+  Activity,
 } from "lucide-react";
 import type { Contribution, ContributionType } from "@/lib/types";
 import { typeConfig } from "@/lib/contribution-utils";
@@ -38,9 +39,23 @@ export function RecentActivity({ contributions }: RecentActivityProps) {
       </CardHeader>
       <CardContent className="space-y-1">
         {contributions.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No contributions yet. Sync from GitHub or add one manually.
-          </p>
+          <div className="flex flex-col items-center py-10 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+              <Activity className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <p className="mb-1 text-sm font-medium">No contributions yet</p>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Sync from GitHub or add one manually to get started
+            </p>
+            <div className="flex gap-2">
+              <a href="/settings" className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+                Connect GitHub
+              </a>
+              <a href="/manual" className="inline-flex h-8 items-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent">
+                Log Entry
+              </a>
+            </div>
+          </div>
         ) : (
           contributions.map((c) => {
             const config = typeConfig[c.type];

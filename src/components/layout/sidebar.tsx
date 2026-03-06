@@ -14,9 +14,11 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { useState } from "react";
+import { toast } from "sonner";
 
-const navItems = [
+export const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/manual", label: "Log Entry", icon: PlusCircle },
@@ -24,35 +26,37 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+export async function syncGitHub() {
+  const toastId = toast.loading("Syncing with GitHub...");
+  try {
+    const res = await fetch("/api/github/sync", { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      toast.success(`Synced ${data.new} new contribution${data.new !== 1 ? "s" : ""} from GitHub`, { id: toastId });
+      window.dispatchEvent(new Event("contributions-updated"));
+      return true;
+    } else {
+      toast.error(data.error || "Sync failed", { id: toastId });
+      return false;
+    }
+  } catch {
+    toast.error("Failed to connect to GitHub", { id: toastId });
+    return false;
+  }
+}
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState("");
 
   const handleSync = async () => {
     setSyncing(true);
-    setSyncMessage("");
-    try {
-      const res = await fetch("/api/github/sync", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
-        setSyncMessage(`${data.new} new`);
-        setTimeout(() => setSyncMessage(""), 3000);
-        window.dispatchEvent(new Event("contributions-updated"));
-      } else {
-        setSyncMessage(data.error?.substring(0, 30) || "Error");
-        setTimeout(() => setSyncMessage(""), 5000);
-      }
-    } catch {
-      setSyncMessage("Sync failed");
-      setTimeout(() => setSyncMessage(""), 3000);
-    } finally {
-      setSyncing(false);
-    }
+    await syncGitHub();
+    setSyncing(false);
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border bg-card">
+    <>
       <div className="flex items-center gap-3 px-6 py-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white">
           <Github className="h-5 w-5" />
@@ -72,6 +76,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive
@@ -96,10 +101,37 @@ export function Sidebar() {
           <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
           {syncing ? "Syncing..." : "Sync GitHub"}
         </Button>
-        {syncMessage && (
-          <p className="mt-2 px-1 text-xs text-muted-foreground">{syncMessage}</p>
-        )}
       </div>
+    </>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-border bg-card md:flex">
+      <SidebarContent />
     </aside>
+  );
+}
+
+export function MobileSidebar() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="md:hidden">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-64 p-0">
+        <SheetTitle className="sr-only">Navigation</SheetTitle>
+        <div className="flex h-full flex-col">
+          <SidebarContent onNavigate={() => setOpen(false)} />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -30,6 +30,9 @@ import {
 import type { Contribution, ContributionType } from "@/lib/types";
 import { typeConfig } from "@/lib/contribution-utils";
 import { formatDistanceToNow, format } from "date-fns";
+import { toast } from "sonner";
+import { EmptyState } from "@/components/empty-state";
+import { syncGitHub } from "@/components/layout/sidebar";
 
 const typeIcons: Record<ContributionType, React.ElementType> = {
   commit: GitCommitHorizontal,
@@ -100,6 +103,7 @@ export default function ActivityPage() {
   }, []);
 
   const handleDelete = async (id: number) => {
+    const item = contributions.find((c) => c.id === id);
     await fetch("/api/contributions", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -108,6 +112,7 @@ export default function ActivityPage() {
     setContributions((prev) => prev.filter((c) => c.id !== id));
     setTotal((prev) => prev - 1);
     window.dispatchEvent(new Event("contributions-updated"));
+    toast.success(`Deleted "${item?.title || "contribution"}"`);
   };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -171,11 +176,28 @@ export default function ActivityPage() {
             ))}
           </div>
         ) : contributions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No contributions found.</p>
-            </CardContent>
-          </Card>
+          search || typeFilter !== "all" || repoFilter !== "all" ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-sm text-muted-foreground">No contributions match your filters.</p>
+                <Button
+                  variant="link"
+                  className="mt-2 text-sm"
+                  onClick={() => { setSearch(""); setTypeFilter("all"); setRepoFilter("all"); }}
+                >
+                  Clear filters
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <EmptyState
+              icon={Activity}
+              title="No contributions yet"
+              description="Sync your GitHub activity or log a contribution manually to start tracking."
+              action={{ label: "Sync GitHub", onClick: () => syncGitHub() }}
+              secondaryAction={{ label: "Log Entry", href: "/manual" }}
+            />
+          )
         ) : (
           <div className="space-y-2">
             {contributions.map((c) => {

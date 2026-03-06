@@ -14,10 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, PlusCircle } from "lucide-react";
+import { PlusCircle } from "lucide-react";
 import { typeConfig } from "@/lib/contribution-utils";
 import type { ContributionType } from "@/lib/types";
+import { toast } from "sonner";
 
 const presets = [
   { type: "review" as const, title: "Code Review", description: "Reviewed pull request" },
@@ -35,7 +35,6 @@ export default function ManualEntryPage() {
   const [repo, setRepo] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,12 +54,13 @@ export default function ManualEntryPage() {
           created_at: new Date(date + "T12:00:00").toISOString(),
         }),
       });
-      setSuccess(true);
+      toast.success(`"${title.trim()}" added successfully`);
       setTitle("");
       setDescription("");
       setRepo("");
       window.dispatchEvent(new Event("contributions-updated"));
-      setTimeout(() => setSuccess(false), 3000);
+    } catch {
+      toast.error("Failed to save contribution");
     } finally {
       setSubmitting(false);
     }
@@ -173,18 +173,10 @@ export default function ManualEntryPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-3">
-                <Button type="submit" disabled={submitting || !title.trim()} className="gap-2">
-                  <PlusCircle className="h-4 w-4" />
-                  {submitting ? "Saving..." : "Add Contribution"}
-                </Button>
-                {success && (
-                  <div className="flex items-center gap-1.5 text-sm text-emerald-500">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Saved successfully!
-                  </div>
-                )}
-              </div>
+              <Button type="submit" disabled={submitting || !title.trim()} className="gap-2">
+                <PlusCircle className="h-4 w-4" />
+                {submitting ? "Saving..." : "Add Contribution"}
+              </Button>
             </form>
           </CardContent>
         </Card>
