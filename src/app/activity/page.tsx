@@ -37,6 +37,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { syncGitHub } from "@/components/layout/sidebar";
+import { ContributionDetail } from "@/components/contribution-detail";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,6 +74,7 @@ export default function ActivityPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
+  const [detailTarget, setDetailTarget] = useState<Contribution | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchDebounced(search), 300);
@@ -223,6 +225,53 @@ export default function ActivityPage() {
           </div>
         </div>
 
+        {/* Active filter chips */}
+        {(typeFilter !== "all" || repoFilter !== "all" || searchDebounced || startDate || endDate) && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Active filters:</span>
+            {typeFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                {typeConfig[typeFilter as ContributionType]?.label || typeFilter}
+                <button onClick={() => setTypeFilter("all")} className="ml-0.5 rounded-full hover:bg-accent">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {repoFilter !== "all" && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                {repoFilter}
+                <button onClick={() => setRepoFilter("all")} className="ml-0.5 rounded-full hover:bg-accent">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {searchDebounced && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                &ldquo;{searchDebounced}&rdquo;
+                <button onClick={() => setSearch("")} className="ml-0.5 rounded-full hover:bg-accent">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {(startDate || endDate) && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                {startDate || "..."} to {endDate || "..."}
+                <button onClick={() => { setStartDate(""); setEndDate(""); }} className="ml-0.5 rounded-full hover:bg-accent">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground"
+              onClick={() => { setSearch(""); setTypeFilter("all"); setRepoFilter("all"); setStartDate(""); setEndDate(""); }}
+            >
+              Clear all
+            </Button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {total} contribution{total !== 1 ? "s" : ""} found
@@ -244,8 +293,20 @@ export default function ActivityPage() {
         {/* Activity list */}
         {loading ? (
           <div className="space-y-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-20 animate-pulse rounded-xl bg-card" />
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-xl border bg-card p-4">
+                <div className="flex items-start gap-4">
+                  <div className="h-9 w-9 rounded-lg skeleton-shimmer shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-3/4 rounded skeleton-shimmer" />
+                    <div className="h-3 w-1/2 rounded skeleton-shimmer" />
+                    <div className="flex gap-2">
+                      <div className="h-5 w-16 rounded skeleton-shimmer" />
+                      <div className="h-5 w-24 rounded skeleton-shimmer" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         ) : contributions.length === 0 ? (
@@ -277,7 +338,7 @@ export default function ActivityPage() {
               const config = typeConfig[c.type];
               const Icon = typeIcons[c.type] || PenLine;
               return (
-                <Card key={c.id} className="transition-colors hover:bg-accent/50">
+                <Card key={c.id} className="cursor-pointer transition-all duration-200 hover:bg-accent/50 hover:shadow-md hover:-translate-y-0.5" onClick={() => setDetailTarget(c)}>
                   <CardContent className="flex items-start gap-4 p-4">
                     <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${config.bgColor}`}>
                       <Icon className={`h-4 w-4 ${config.color}`} />
@@ -288,7 +349,7 @@ export default function ActivityPage() {
                         <div className="flex shrink-0 items-center gap-1">
                           {c.url && (
                             <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                              <a href={c.url} target="_blank" rel="noopener noreferrer">
+                              <a href={c.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                                 <ExternalLink className="h-3.5 w-3.5" />
                               </a>
                             </Button>
@@ -297,7 +358,7 @@ export default function ActivityPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => setDeleteTarget({ id: c.id, title: c.title })}
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: c.id, title: c.title }); }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -355,6 +416,13 @@ export default function ActivityPage() {
           </div>
         )}
       </div>
+
+      {/* Contribution detail dialog */}
+      <ContributionDetail
+        contribution={detailTarget}
+        open={!!detailTarget}
+        onOpenChange={(open) => !open && setDetailTarget(null)}
+      />
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

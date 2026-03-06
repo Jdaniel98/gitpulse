@@ -84,7 +84,7 @@ export function GoalProgress() {
   }
 
   return (
-    <Card>
+    <Card className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both" style={{ animationDelay: "200ms", animationDuration: "500ms" }}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">

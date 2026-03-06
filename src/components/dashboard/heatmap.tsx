@@ -72,7 +72,7 @@ export function ContributionHeatmap({ data }: HeatmapProps) {
   const dayLabels = ["", "Mon", "", "Wed", "", "Fri", ""];
 
   return (
-    <Card>
+    <Card className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both" style={{ animationDelay: "300ms", animationDuration: "500ms" }}>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Contribution Activity</CardTitle>
       </CardHeader>

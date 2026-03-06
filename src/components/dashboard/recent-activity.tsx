@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,6 +17,7 @@ import {
 import type { Contribution, ContributionType } from "@/lib/types";
 import { typeConfig } from "@/lib/contribution-utils";
 import { formatDistanceToNow } from "date-fns";
+import { ContributionDetail } from "@/components/contribution-detail";
 
 const typeIcons: Record<ContributionType, React.ElementType> = {
   commit: GitCommitHorizontal,
@@ -32,8 +34,10 @@ interface RecentActivityProps {
 }
 
 export function RecentActivity({ contributions }: RecentActivityProps) {
+  const [detailTarget, setDetailTarget] = useState<Contribution | null>(null);
+
   return (
-    <Card>
+    <Card className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both" style={{ animationDelay: "500ms", animationDuration: "500ms" }}>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Recent Activity</CardTitle>
       </CardHeader>
@@ -63,7 +67,8 @@ export function RecentActivity({ contributions }: RecentActivityProps) {
             return (
               <div
                 key={c.id}
-                className="flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent"
+                className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 hover:bg-accent hover:shadow-sm"
+                onClick={() => setDetailTarget(c)}
               >
                 <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${config.bgColor}`}>
                   <Icon className={`h-3.5 w-3.5 ${config.color}`} />
@@ -77,6 +82,7 @@ export function RecentActivity({ contributions }: RecentActivityProps) {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="shrink-0 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <ExternalLink className="h-3 w-3" />
                       </a>
@@ -99,6 +105,12 @@ export function RecentActivity({ contributions }: RecentActivityProps) {
           })
         )}
       </CardContent>
+
+      <ContributionDetail
+        contribution={detailTarget}
+        open={!!detailTarget}
+        onOpenChange={(open) => !open && setDetailTarget(null)}
+      />
     </Card>
   );
 }

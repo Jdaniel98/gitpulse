@@ -3,6 +3,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Flame, Trophy, Zap } from "lucide-react";
 import type { StreakInfo } from "@/lib/types";
+import { useAnimatedNumber } from "@/hooks/use-animated-number";
+
+function AnimatedValue({ value, className }: { value: number; className?: string }) {
+  const animated = useAnimatedNumber(value);
+  return <p className={className}>{animated}</p>;
+}
 
 interface StreakCardsProps {
   streak: StreakInfo;
@@ -38,15 +44,15 @@ export function StreakCards({ streak }: StreakCardsProps) {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      {cards.map((card) => (
-        <Card key={card.title}>
+      {cards.map((card, i) => (
+        <Card key={card.title} className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both" style={{ animationDelay: `${i * 100}ms`, animationDuration: "500ms" }}>
           <CardContent className="flex items-center gap-4 p-5">
             <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${card.bg}`}>
               <card.icon className={`h-5 w-5 ${card.color}`} />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">{card.title}</p>
-              <p className="text-2xl font-bold">{card.value}</p>
+              <AnimatedValue value={card.value} className="text-2xl font-bold tabular-nums" />
               <p className="text-xs text-muted-foreground">{card.subtitle}</p>
             </div>
           </CardContent>

@@ -78,9 +78,39 @@ export default function AnalyticsPage() {
       <>
         <Header title="Analytics" />
         <div className="space-y-6 p-6">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-72 animate-pulse rounded-xl bg-card" />
+          {/* Insights skeleton */}
+          <div className="rounded-xl border bg-card p-5">
+            <div className="h-4 w-20 rounded skeleton-shimmer mb-4" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-start gap-3 rounded-lg border border-border p-3">
+                  <div className="h-4 w-4 rounded skeleton-shimmer mt-0.5" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="h-3 w-24 rounded skeleton-shimmer" />
+                    <div className="h-4 w-16 rounded skeleton-shimmer" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Chart skeletons */}
+          {[0, 1].map((i) => (
+            <div key={i} className="rounded-xl border bg-card p-5">
+              <div className="flex justify-between mb-4">
+                <div className="h-4 w-36 rounded skeleton-shimmer" />
+                {i === 0 && <div className="h-7 w-48 rounded-lg skeleton-shimmer" />}
+              </div>
+              <div className="h-[280px] rounded skeleton-shimmer" />
+            </div>
           ))}
+          <div className="grid gap-6 lg:grid-cols-2">
+            {[0, 1].map((i) => (
+              <div key={i} className="rounded-xl border bg-card p-5">
+                <div className="h-4 w-24 rounded skeleton-shimmer mb-4" />
+                <div className="h-[280px] rounded skeleton-shimmer" />
+              </div>
+            ))}
+          </div>
         </div>
       </>
     );
