@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -8,6 +8,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
+import { ServiceWorkerRegister } from "@/components/sw-register";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,6 +23,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GitPulse — GitHub Contribution Tracker",
   description: "Track and record all your daily GitHub contributions",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "GitPulse",
+  },
+  icons: {
+    icon: "/icons/icon-192.svg",
+    apple: "/icons/icon-192.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#10b981",
 };
 
 export default function RootLayout({
@@ -56,6 +71,7 @@ export default function RootLayout({
               closeButton
             />
           </TooltipProvider>
+          <ServiceWorkerRegister />
         </ThemeProvider>
       </body>
     </html>
