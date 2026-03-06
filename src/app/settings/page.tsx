@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Github, Key, ExternalLink, RefreshCw } from "lucide-react";
+import { Github, Key, ExternalLink, RefreshCw, User } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
   const [token, setToken] = useState("");
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -69,15 +71,54 @@ export default function SettingsPage() {
     <>
       <Header title="Settings" />
       <div className="mx-auto max-w-2xl space-y-6 p-6">
-        {/* Connection Status */}
+        {/* Account */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <User className="h-4 w-4" />
+              Account
+            </CardTitle>
+            <CardDescription>
+              Signed in via GitHub OAuth
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {session?.user ? (
+              <div className="flex items-center gap-4 rounded-lg border border-border p-4">
+                {session.user.image && (
+                  <img
+                    src={session.user.image}
+                    alt="Avatar"
+                    className="h-12 w-12 rounded-full"
+                  />
+                )}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{session.user.name}</span>
+                    <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
+                      Authenticated
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {session.user.email}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="h-16 animate-pulse rounded-lg bg-muted" />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* GitHub API Connection */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Github className="h-4 w-4" />
-              GitHub Connection
+              GitHub API Token
             </CardTitle>
             <CardDescription>
-              Connect your GitHub account to automatically sync contributions
+              Add a personal access token to sync your contribution history
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -106,7 +147,7 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border p-4 text-center">
-                <p className="text-sm text-muted-foreground">No GitHub account connected</p>
+                <p className="text-sm text-muted-foreground">No GitHub API token configured</p>
               </div>
             )}
 
@@ -200,7 +241,7 @@ export default function SettingsPage() {
           <CardContent>
             <p className="text-sm text-muted-foreground">
               GitPulse tracks your daily GitHub contributions across open source projects,
-              personal repositories, and manual entries. All data is stored locally on your machine.
+              personal repositories, and manual entries.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-border p-3">

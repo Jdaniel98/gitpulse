@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getContributionsForExport } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 export async function GET(request: NextRequest) {
+  const result = await requireAuth();
+  if (result instanceof NextResponse) return result;
+  const { userId } = result;
+
   const params = request.nextUrl.searchParams;
   const format = params.get("format") || "json";
 
-  const data = getContributionsForExport({
+  const data = getContributionsForExport(userId, {
     type: params.get("type") || undefined,
     repo: params.get("repo") || undefined,
     search: params.get("search") || undefined,

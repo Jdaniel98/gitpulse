@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
-import { getSetting, insertContributions, hasGithubId } from "@/lib/db";
+import { getUserSetting, insertContributions, hasGithubId } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import { fetchGitHubEvents } from "@/lib/github";
 
 export async function POST() {
-  const token = getSetting("github_token");
-  const username = getSetting("github_username");
+  const result = await requireAuth();
+  if (result instanceof NextResponse) return result;
+  const { userId } = result;
+
+  const token = getUserSetting(userId, "github_token");
+  const username = getUserSetting(userId, "github_username");
 
   if (!token || !username) {
     return NextResponse.json(
@@ -21,7 +26,7 @@ export async function POST() {
       (e) => !e.github_id || !hasGithubId(e.github_id)
     );
 
-    const inserted = insertContributions(newEvents);
+    const inserted = insertContributions(newEvents, userId);
 
     return NextResponse.json({
       fetched: events.length,

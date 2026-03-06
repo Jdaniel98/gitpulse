@@ -2,13 +2,11 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Sidebar } from "@/components/layout/sidebar";
-import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
-import { CommandPalette } from "@/components/command-palette";
-import { ErrorBoundary } from "@/components/error-boundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import { ServiceWorkerRegister } from "@/components/sw-register";
+import AuthSessionProvider from "@/components/session-provider";
+import { AppShell } from "@/components/app-shell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,30 +47,25 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <TooltipProvider>
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <main className="flex-1 md:ml-64">
-                <ErrorBoundary>{children}</ErrorBoundary>
-              </main>
-            </div>
-            <KeyboardShortcuts />
-            <CommandPalette />
-            <Toaster
-              theme="system"
-              position="bottom-right"
-              richColors
-              closeButton
-            />
-          </TooltipProvider>
-          <ServiceWorkerRegister />
-        </ThemeProvider>
+        <AuthSessionProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <TooltipProvider>
+              <AppShell>{children}</AppShell>
+              <Toaster
+                theme="system"
+                position="bottom-right"
+                richColors
+                closeButton
+              />
+            </TooltipProvider>
+            <ServiceWorkerRegister />
+          </ThemeProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

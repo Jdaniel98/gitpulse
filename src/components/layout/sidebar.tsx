@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   Activity,
@@ -11,6 +12,7 @@ import {
   Github,
   RefreshCw,
   Clock,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,7 @@ export async function syncGitHub() {
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [, setTick] = useState(0);
@@ -172,6 +175,39 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         )}
       </div>
+
+      {/* User profile */}
+      {session?.user && (
+        <>
+          <Separator />
+          <div className="flex items-center gap-3 px-4 py-3">
+            {session.user.image ? (
+              <img
+                src={session.user.image}
+                alt="Avatar"
+                className="h-8 w-8 rounded-full"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+                {session.user.name?.[0]?.toUpperCase() || "?"}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="truncate text-sm font-medium">{session.user.name}</p>
+              <p className="truncate text-[10px] text-muted-foreground">{session.user.email}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </>
+      )}
     </>
   );
 }

@@ -6,7 +6,7 @@ const DB_PATH = path.join(process.cwd(), "data", "tracker.db");
 
 let db: Database.Database | null = null;
 
-function getDb(): Database.Database {
+export function getDb(): Database.Database {
   if (!db) {
     const fs = require("fs");
     const dir = path.dirname(DB_PATH);
@@ -51,14 +51,86 @@ function initSchema(db: Database.Database) {
       target INTEGER NOT NULL,
       period TEXT NOT NULL DEFAULT 'daily'
     );
+
+    -- Auth tables
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      email TEXT UNIQUE,
+      emailVerified TEXT,
+      image TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      providerAccountId TEXT NOT NULL,
+      refresh_token TEXT,
+      access_token TEXT,
+      expires_at INTEGER,
+      token_type TEXT,
+      scope TEXT,
+      id_token TEXT,
+      session_state TEXT,
+      UNIQUE(provider, providerAccountId)
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      sessionToken TEXT PRIMARY KEY,
+      userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS verification_tokens (
+      identifier TEXT NOT NULL,
+      token TEXT NOT NULL,
+      expires TEXT NOT NULL,
+      UNIQUE(identifier, token)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id TEXT NOT NULL REFERENCES users(id),
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      PRIMARY KEY(user_id, key)
+    );
+  `);
+
+  // Add user_id columns to existing tables (idempotent)
+  try {
+    db.exec(`ALTER TABLE contributions ADD COLUMN user_id TEXT REFERENCES users(id)`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE goals ADD COLUMN user_id TEXT REFERENCES users(id)`);
+  } catch {
+    // Column already exists
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_contributions_user_id ON contributions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id);
   `);
 }
 
-export function insertContribution(data: ContributionInsert): Contribution {
+// --- Auth data claim ---
+
+export function claimOrphanedData(userId: string): void {
+  const db = getDb();
+  db.prepare("UPDATE contributions SET user_id = ? WHERE user_id IS NULL").run(userId);
+  db.prepare("UPDATE goals SET user_id = ? WHERE user_id IS NULL").run(userId);
+}
+
+// --- Contributions ---
+
+export function insertContribution(data: ContributionInsert, userId: string): Contribution {
   const db = getDb();
   const stmt = db.prepare(`
-    INSERT INTO contributions (type, title, description, repo, url, source, github_id, created_at, synced_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO contributions (type, title, description, repo, url, source, github_id, created_at, synced_at, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
     data.type,
@@ -69,16 +141,17 @@ export function insertContribution(data: ContributionInsert): Contribution {
     data.source,
     data.github_id || null,
     data.created_at,
-    data.synced_at || null
+    data.synced_at || null,
+    userId
   );
   return getContributionById(Number(result.lastInsertRowid))!;
 }
 
-export function insertContributions(items: ContributionInsert[]): number {
+export function insertContributions(items: ContributionInsert[], userId: string): number {
   const db = getDb();
   const stmt = db.prepare(`
-    INSERT OR IGNORE INTO contributions (type, title, description, repo, url, source, github_id, created_at, synced_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO contributions (type, title, description, repo, url, source, github_id, created_at, synced_at, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMany = db.transaction((items: ContributionInsert[]) => {
@@ -93,7 +166,8 @@ export function insertContributions(items: ContributionInsert[]): number {
         item.source,
         item.github_id || null,
         item.created_at,
-        item.synced_at || null
+        item.synced_at || null,
+        userId
       );
       if (result.changes > 0) count++;
     }
@@ -108,7 +182,7 @@ export function getContributionById(id: number): Contribution | undefined {
   return db.prepare("SELECT * FROM contributions WHERE id = ?").get(id) as Contribution | undefined;
 }
 
-export function getContributions(options: {
+export function getContributions(userId: string, options: {
   limit?: number;
   offset?: number;
   type?: string;
@@ -118,8 +192,8 @@ export function getContributions(options: {
   endDate?: string;
 } = {}): { data: Contribution[]; total: number } {
   const db = getDb();
-  const conditions: string[] = [];
-  const params: (string | number)[] = [];
+  const conditions: string[] = ["user_id = ?"];
+  const params: (string | number)[] = [userId];
 
   if (options.type && options.type !== "all") {
     conditions.push("type = ?");
@@ -142,7 +216,7 @@ export function getContributions(options: {
     params.push(options.endDate);
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where = `WHERE ${conditions.join(" AND ")}`;
   const limit = options.limit || 50;
   const offset = options.offset || 0;
 
@@ -152,21 +226,21 @@ export function getContributions(options: {
   return { data, total };
 }
 
-export function deleteContribution(id: number): boolean {
+export function deleteContribution(id: number, userId: string): boolean {
   const db = getDb();
-  const result = db.prepare("DELETE FROM contributions WHERE id = ?").run(id);
+  const result = db.prepare("DELETE FROM contributions WHERE id = ? AND user_id = ?").run(id, userId);
   return result.changes > 0;
 }
 
-export function deleteContributions(ids: number[]): number {
+export function deleteContributions(ids: number[], userId: string): number {
   const db = getDb();
   if (ids.length === 0) return 0;
   const placeholders = ids.map(() => "?").join(",");
-  const result = db.prepare(`DELETE FROM contributions WHERE id IN (${placeholders})`).run(...ids);
+  const result = db.prepare(`DELETE FROM contributions WHERE id IN (${placeholders}) AND user_id = ?`).run(...ids, userId);
   return result.changes;
 }
 
-export function getDailyCounts(days: number = 365): DayCount[] {
+export function getDailyCounts(userId: string, days: number = 365): DayCount[] {
   const db = getDb();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -175,43 +249,45 @@ export function getDailyCounts(days: number = 365): DayCount[] {
   return db.prepare(`
     SELECT DATE(created_at) as date, COUNT(*) as count
     FROM contributions
-    WHERE created_at >= ?
+    WHERE created_at >= ? AND user_id = ?
     GROUP BY DATE(created_at)
     ORDER BY date ASC
-  `).all(startStr) as DayCount[];
+  `).all(startStr, userId) as DayCount[];
 }
 
-export function getTypeCounts(): TypeCount[] {
+export function getTypeCounts(userId: string): TypeCount[] {
   const db = getDb();
   return db.prepare(`
     SELECT type, COUNT(*) as count
     FROM contributions
+    WHERE user_id = ?
     GROUP BY type
     ORDER BY count DESC
-  `).all() as TypeCount[];
+  `).all(userId) as TypeCount[];
 }
 
-export function getRepoCounts(limit: number = 10): RepoCount[] {
+export function getRepoCounts(userId: string, limit: number = 10): RepoCount[] {
   const db = getDb();
   return db.prepare(`
     SELECT repo, COUNT(*) as count
     FROM contributions
-    WHERE repo IS NOT NULL
+    WHERE repo IS NOT NULL AND user_id = ?
     GROUP BY repo
     ORDER BY count DESC
     LIMIT ?
-  `).all(limit) as RepoCount[];
+  `).all(userId, limit) as RepoCount[];
 }
 
-export function getDayOfWeekCounts(): { day: string; count: number }[] {
+export function getDayOfWeekCounts(userId: string): { day: string; count: number }[] {
   const db = getDb();
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const rows = db.prepare(`
     SELECT CAST(strftime('%w', created_at) AS INTEGER) as day_num, COUNT(*) as count
     FROM contributions
+    WHERE user_id = ?
     GROUP BY day_num
     ORDER BY day_num
-  `).all() as { day_num: number; count: number }[];
+  `).all(userId) as { day_num: number; count: number }[];
 
   return dayNames.map((day, i) => ({
     day,
@@ -219,14 +295,14 @@ export function getDayOfWeekCounts(): { day: string; count: number }[] {
   }));
 }
 
-export function getTotalCount(): number {
+export function getTotalCount(userId: string): number {
   const db = getDb();
-  return (db.prepare("SELECT COUNT(*) as count FROM contributions").get() as { count: number }).count;
+  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE user_id = ?").get(userId) as { count: number }).count;
 }
 
-export function getUniqueRepos(): string[] {
+export function getUniqueRepos(userId: string): string[] {
   const db = getDb();
-  return (db.prepare("SELECT DISTINCT repo FROM contributions WHERE repo IS NOT NULL ORDER BY repo").all() as { repo: string }[]).map(r => r.repo);
+  return (db.prepare("SELECT DISTINCT repo FROM contributions WHERE repo IS NOT NULL AND user_id = ? ORDER BY repo").all(userId) as { repo: string }[]).map(r => r.repo);
 }
 
 export function hasGithubId(githubId: string): boolean {
@@ -235,56 +311,59 @@ export function hasGithubId(githubId: string): boolean {
   return !!row;
 }
 
-export function getSetting(key: string): string | null {
+// --- Per-user settings ---
+
+export function getUserSetting(userId: string, key: string): string | null {
   const db = getDb();
-  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
+  const row = db.prepare("SELECT value FROM user_settings WHERE user_id = ? AND key = ?").get(userId, key) as { value: string } | undefined;
   return row?.value || null;
 }
 
-export function setSetting(key: string, value: string): void {
+export function setUserSetting(userId: string, key: string, value: string): void {
   const db = getDb();
-  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, value);
+  db.prepare("INSERT OR REPLACE INTO user_settings (user_id, key, value) VALUES (?, ?, ?)").run(userId, key, value);
 }
 
-export function getAllSettings(): Record<string, string> {
+export function getAllUserSettings(userId: string): Record<string, string> {
   const db = getDb();
-  const rows = db.prepare("SELECT key, value FROM settings").all() as { key: string; value: string }[];
+  const rows = db.prepare("SELECT key, value FROM user_settings WHERE user_id = ?").all(userId) as { key: string; value: string }[];
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
-// Goals
-export function getGoals(): Goal[] {
+// --- Goals ---
+
+export function getGoals(userId: string): Goal[] {
   const db = getDb();
-  return db.prepare("SELECT * FROM goals").all() as Goal[];
+  return db.prepare("SELECT id, label, target, period FROM goals WHERE user_id = ?").all(userId) as Goal[];
 }
 
-export function upsertGoal(goal: Goal): void {
+export function upsertGoal(goal: Goal, userId: string): void {
   const db = getDb();
-  db.prepare("INSERT OR REPLACE INTO goals (id, label, target, period) VALUES (?, ?, ?, ?)").run(goal.id, goal.label, goal.target, goal.period);
+  db.prepare("INSERT OR REPLACE INTO goals (id, label, target, period, user_id) VALUES (?, ?, ?, ?, ?)").run(goal.id, goal.label, goal.target, goal.period, userId);
 }
 
-export function deleteGoal(id: string): boolean {
+export function deleteGoal(id: string, userId: string): boolean {
   const db = getDb();
-  const result = db.prepare("DELETE FROM goals WHERE id = ?").run(id);
+  const result = db.prepare("DELETE FROM goals WHERE id = ? AND user_id = ?").run(id, userId);
   return result.changes > 0;
 }
 
-export function getTodayCount(): number {
+export function getTodayCount(userId: string): number {
   const db = getDb();
   const today = new Date().toISOString().split("T")[0];
-  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE DATE(created_at) = ?").get(today) as { count: number }).count;
+  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE DATE(created_at) = ? AND user_id = ?").get(today, userId) as { count: number }).count;
 }
 
-export function getWeekCount(): number {
+export function getWeekCount(userId: string): number {
   const db = getDb();
   const now = new Date();
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - now.getDay());
   startOfWeek.setHours(0, 0, 0, 0);
-  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE created_at >= ?").get(startOfWeek.toISOString()) as { count: number }).count;
+  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE created_at >= ? AND user_id = ?").get(startOfWeek.toISOString(), userId) as { count: number }).count;
 }
 
-export function getThisWeekDailyCounts(): DayCount[] {
+export function getThisWeekDailyCounts(userId: string): DayCount[] {
   const db = getDb();
   const now = new Date();
   const startOfWeek = new Date(now);
@@ -293,23 +372,23 @@ export function getThisWeekDailyCounts(): DayCount[] {
   return db.prepare(`
     SELECT DATE(created_at) as date, COUNT(*) as count
     FROM contributions
-    WHERE DATE(created_at) >= ?
+    WHERE DATE(created_at) >= ? AND user_id = ?
     GROUP BY DATE(created_at)
     ORDER BY date ASC
-  `).all(startStr) as DayCount[];
+  `).all(startStr, userId) as DayCount[];
 }
 
-export function getLastWeekCount(): number {
+export function getLastWeekCount(userId: string): number {
   const db = getDb();
   const now = new Date();
   const startOfLastWeek = new Date(now);
   startOfLastWeek.setDate(now.getDate() - now.getDay() - 7);
   const endOfLastWeek = new Date(now);
   endOfLastWeek.setDate(now.getDate() - now.getDay());
-  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE created_at >= ? AND created_at < ?").get(startOfLastWeek.toISOString(), endOfLastWeek.toISOString()) as { count: number }).count;
+  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE created_at >= ? AND created_at < ? AND user_id = ?").get(startOfLastWeek.toISOString(), endOfLastWeek.toISOString(), userId) as { count: number }).count;
 }
 
-export function getMonthlyCounts(months: number = 12): { month: string; count: number }[] {
+export function getMonthlyCounts(userId: string, months: number = 12): { month: string; count: number }[] {
   const db = getDb();
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - months);
@@ -317,20 +396,21 @@ export function getMonthlyCounts(months: number = 12): { month: string; count: n
   return db.prepare(`
     SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count
     FROM contributions
-    WHERE created_at >= ?
+    WHERE created_at >= ? AND user_id = ?
     GROUP BY month
     ORDER BY month ASC
-  `).all(startStr) as { month: string; count: number }[];
+  `).all(startStr, userId) as { month: string; count: number }[];
 }
 
-export function getHourOfDayCounts(): { hour: number; count: number }[] {
+export function getHourOfDayCounts(userId: string): { hour: number; count: number }[] {
   const db = getDb();
   const rows = db.prepare(`
     SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
     FROM contributions
+    WHERE user_id = ?
     GROUP BY hour
     ORDER BY hour
-  `).all() as { hour: number; count: number }[];
+  `).all(userId) as { hour: number; count: number }[];
 
   return Array.from({ length: 24 }, (_, i) => ({
     hour: i,
@@ -338,7 +418,7 @@ export function getHourOfDayCounts(): { hour: number; count: number }[] {
   }));
 }
 
-export function getPunchCardData(): { dayOfWeek: number; hour: number; count: number }[] {
+export function getPunchCardData(userId: string): { dayOfWeek: number; hour: number; count: number }[] {
   const db = getDb();
   return db.prepare(`
     SELECT
@@ -346,12 +426,13 @@ export function getPunchCardData(): { dayOfWeek: number; hour: number; count: nu
       CAST(strftime('%H', created_at) AS INTEGER) as hour,
       COUNT(*) as count
     FROM contributions
+    WHERE user_id = ?
     GROUP BY dayOfWeek, hour
     ORDER BY dayOfWeek, hour
-  `).all() as { dayOfWeek: number; hour: number; count: number }[];
+  `).all(userId) as { dayOfWeek: number; hour: number; count: number }[];
 }
 
-export function getDailyCountsByType(days: number = 365): { date: string; type: string; count: number }[] {
+export function getDailyCountsByType(userId: string, days: number = 365): { date: string; type: string; count: number }[] {
   const db = getDb();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -359,13 +440,13 @@ export function getDailyCountsByType(days: number = 365): { date: string; type: 
   return db.prepare(`
     SELECT DATE(created_at) as date, type, COUNT(*) as count
     FROM contributions
-    WHERE created_at >= ?
+    WHERE created_at >= ? AND user_id = ?
     GROUP BY DATE(created_at), type
     ORDER BY date ASC
-  `).all(startStr) as { date: string; type: string; count: number }[];
+  `).all(startStr, userId) as { date: string; type: string; count: number }[];
 }
 
-export function getContributionsForExport(options: {
+export function getContributionsForExport(userId: string, options: {
   type?: string;
   repo?: string;
   search?: string;
@@ -373,8 +454,8 @@ export function getContributionsForExport(options: {
   endDate?: string;
 } = {}): Contribution[] {
   const db = getDb();
-  const conditions: string[] = [];
-  const params: string[] = [];
+  const conditions: string[] = ["user_id = ?"];
+  const params: string[] = [userId];
 
   if (options.type && options.type !== "all") {
     conditions.push("type = ?");
@@ -397,6 +478,6 @@ export function getContributionsForExport(options: {
     params.push(options.endDate);
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where = `WHERE ${conditions.join(" AND ")}`;
   return db.prepare(`SELECT * FROM contributions ${where} ORDER BY created_at DESC`).all(...params) as Contribution[];
 }

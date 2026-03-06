@@ -12,6 +12,7 @@ import {
   getDailyCountsByType,
   getPunchCardData,
 } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import type { AnalyticsData, StreakInfo, Insight } from "@/lib/types";
 
 function calculateStreak(dailyCounts: { date: string; count: number }[]): StreakInfo {
@@ -57,6 +58,7 @@ function calculateStreak(dailyCounts: { date: string; count: number }[]): Streak
 }
 
 function generateInsights(
+  userId: string,
   daily: { date: string; count: number }[],
   byType: { type: string; count: number }[],
   byRepo: { repo: string; count: number }[],
@@ -77,8 +79,8 @@ function generateInsights(
   }
 
   // Weekly comparison
-  const thisWeek = getWeekCount();
-  const lastWeek = getLastWeekCount();
+  const thisWeek = getWeekCount(userId);
+  const lastWeek = getLastWeekCount(userId);
   if (lastWeek > 0) {
     const change = thisWeek - lastWeek;
     const pct = Math.round((Math.abs(change) / lastWeek) * 100);
@@ -143,18 +145,22 @@ function generateInsights(
 }
 
 export async function GET() {
-  const daily = getDailyCounts(365);
-  const byType = getTypeCounts();
-  const byRepo = getRepoCounts(10);
-  const byDayOfWeek = getDayOfWeekCounts();
-  const byHourOfDay = getHourOfDayCounts();
-  const monthly = getMonthlyCounts(12);
-  const total = getTotalCount();
+  const result = await requireAuth();
+  if (result instanceof NextResponse) return result;
+  const { userId } = result;
+
+  const daily = getDailyCounts(userId, 365);
+  const byType = getTypeCounts(userId);
+  const byRepo = getRepoCounts(userId, 10);
+  const byDayOfWeek = getDayOfWeekCounts(userId);
+  const byHourOfDay = getHourOfDayCounts(userId);
+  const monthly = getMonthlyCounts(userId, 12);
+  const total = getTotalCount(userId);
   const streak = calculateStreak(daily);
-  const insights = generateInsights(daily, byType, byRepo, byDayOfWeek, total, streak);
+  const insights = generateInsights(userId, daily, byType, byRepo, byDayOfWeek, total, streak);
 
   // Build daily-by-type data for stacked area chart
-  const rawByType = getDailyCountsByType(365);
+  const rawByType = getDailyCountsByType(userId, 365);
   const typeSet = new Set(rawByType.map((r) => r.type));
   const dateMap = new Map<string, Record<string, number>>();
   for (const row of rawByType) {
@@ -168,7 +174,7 @@ export async function GET() {
     ...Object.fromEntries([...typeSet].map((t) => [t, types[t] || 0])),
   }));
 
-  const punchCard = getPunchCardData();
+  const punchCard = getPunchCardData(userId);
 
   const data: AnalyticsData = {
     daily,
