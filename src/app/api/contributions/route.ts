@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { insertContribution, getContributions, deleteContribution } from "@/lib/db";
+import { insertContribution, getContributions, deleteContribution, deleteContributions } from "@/lib/db";
 import type { ContributionInsert } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
@@ -37,8 +37,16 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { id } = await request.json();
-  const deleted = deleteContribution(id);
+  const body = await request.json();
+
+  // Bulk delete
+  if (body.ids && Array.isArray(body.ids)) {
+    const count = deleteContributions(body.ids);
+    return NextResponse.json({ success: true, deleted: count });
+  }
+
+  // Single delete
+  const deleted = deleteContribution(body.id);
   if (!deleted) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

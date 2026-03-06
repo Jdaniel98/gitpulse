@@ -158,6 +158,14 @@ export function deleteContribution(id: number): boolean {
   return result.changes > 0;
 }
 
+export function deleteContributions(ids: number[]): number {
+  const db = getDb();
+  if (ids.length === 0) return 0;
+  const placeholders = ids.map(() => "?").join(",");
+  const result = db.prepare(`DELETE FROM contributions WHERE id IN (${placeholders})`).run(...ids);
+  return result.changes;
+}
+
 export function getDailyCounts(days: number = 365): DayCount[] {
   const db = getDb();
   const startDate = new Date();

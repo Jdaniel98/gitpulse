@@ -30,7 +30,9 @@ import {
   CalendarDays,
   X,
   Activity,
+  CheckSquare,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Contribution, ContributionType } from "@/lib/types";
 import { typeConfig } from "@/lib/contribution-utils";
 import { formatDistanceToNow, format } from "date-fns";
@@ -75,6 +77,8 @@ export default function ActivityPage() {
   const [endDate, setEndDate] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
   const [detailTarget, setDetailTarget] = useState<Contribution | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchDebounced(search), 300);
@@ -147,6 +151,62 @@ export default function ActivityPage() {
     window.open(`/api/export?${params}`, "_blank");
     toast.success(`Exporting as ${format.toUpperCase()}`);
   };
+
+  const toggleSelect = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === contributions.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(contributions.map((c) => c.id)));
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    const ids = [...selected];
+    await fetch("/api/contributions", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    setContributions((prev) => prev.filter((c) => !selected.has(c.id)));
+    setTotal((prev) => prev - ids.length);
+    toast.success(`Deleted ${ids.length} contribution${ids.length !== 1 ? "s" : ""}`);
+    setSelected(new Set());
+    setBulkDeleteOpen(false);
+    window.dispatchEvent(new Event("contributions-updated"));
+  };
+
+  const handleBulkExport = (format: "csv" | "json") => {
+    const selectedContribs = contributions.filter((c) => selected.has(c.id));
+    const blob = format === "json"
+      ? new Blob([JSON.stringify(selectedContribs, null, 2)], { type: "application/json" })
+      : new Blob([
+          ["id", "type", "title", "description", "repo", "url", "source", "created_at"].join(",") + "\n" +
+          selectedContribs.map((c) =>
+            [c.id, c.type, `"${(c.title || "").replace(/"/g, '""')}"`, `"${(c.description || "").replace(/"/g, '""')}"`, c.repo || "", c.url || "", c.source, c.created_at].join(",")
+          ).join("\n"),
+        ], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `contributions-selected.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${selectedContribs.length} contribution${selectedContribs.length !== 1 ? "s" : ""}`);
+  };
+
+  // Clear selection when page/filters change
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, typeFilter, searchDebounced, repoFilter, startDate, endDate]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -273,10 +333,49 @@ export default function ActivityPage() {
         )}
 
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {total} contribution{total !== 1 ? "s" : ""} found
-          </p>
-          {total > 0 && (
+          <div className="flex items-center gap-3">
+            {contributions.length > 0 && !loading && (
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  id="select-all"
+                  checked={contributions.length > 0 && selected.size === contributions.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+                <label htmlFor="select-all" className="cursor-pointer text-xs text-muted-foreground">
+                  Select all
+                </label>
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground">
+              {selected.size > 0
+                ? `${selected.size} of ${total} selected`
+                : `${total} contribution${total !== 1 ? "s" : ""} found`}
+            </p>
+          </div>
+          {selected.size > 0 ? (
+            <div className="flex items-center gap-1 animate-in fade-in slide-in-from-right-2 duration-200">
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleBulkExport("csv")}>
+                <Download className="h-3 w-3" />
+                Export CSV
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleBulkExport("json")}>
+                <Download className="h-3 w-3" />
+                Export JSON
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="h-3 w-3" />
+                Delete ({selected.size})
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : total > 0 ? (
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleExport("csv")}>
                 <Download className="h-3 w-3" />
@@ -287,7 +386,7 @@ export default function ActivityPage() {
                 JSON
               </Button>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Activity list */}
@@ -338,8 +437,18 @@ export default function ActivityPage() {
               const config = typeConfig[c.type];
               const Icon = typeIcons[c.type] || PenLine;
               return (
-                <Card key={c.id} className="cursor-pointer transition-all duration-200 hover:bg-accent/50 hover:shadow-md hover:-translate-y-0.5" onClick={() => setDetailTarget(c)}>
+                <Card
+                  key={c.id}
+                  className={`cursor-pointer transition-all duration-200 hover:bg-accent/50 hover:shadow-md hover:-translate-y-0.5 ${selected.has(c.id) ? "ring-1 ring-primary bg-accent/30" : ""}`}
+                  onClick={() => setDetailTarget(c)}
+                >
                   <CardContent className="flex items-start gap-4 p-4">
+                    <div className="flex flex-col items-center gap-2 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selected.has(c.id)}
+                        onCheckedChange={() => toggleSelect(c.id)}
+                      />
+                    </div>
                     <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${config.bgColor}`}>
                       <Icon className={`h-4 w-4 ${config.color}`} />
                     </div>
@@ -423,6 +532,27 @@ export default function ActivityPage() {
         open={!!detailTarget}
         onOpenChange={(open) => !open && setDetailTarget(null)}
       />
+
+      {/* Bulk delete confirmation dialog */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selected.size} contribution{selected.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected contributions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete {selected.size} item{selected.size !== 1 ? "s" : ""}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
