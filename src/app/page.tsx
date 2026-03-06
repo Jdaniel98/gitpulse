@@ -5,6 +5,7 @@ import { ContributionHeatmap } from "@/components/dashboard/heatmap";
 import { StreakCards } from "@/components/dashboard/streak-card";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
+import { GoalProgress } from "@/components/dashboard/goal-progress";
 import { useContributions, useAnalytics } from "@/hooks/use-contributions";
 
 export default function DashboardPage() {
@@ -31,6 +32,7 @@ export default function DashboardPage() {
         ) : analytics ? (
           <>
             <StreakCards streak={analytics.streak} />
+            <GoalProgress />
             <ContributionHeatmap data={analytics.daily} />
             <StatsCards data={analytics.byType} total={analytics.total} />
             <RecentActivity contributions={contributions} />

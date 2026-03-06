@@ -55,6 +55,25 @@ export interface StreakInfo {
   todayCount: number;
 }
 
+export interface Goal {
+  id: string;
+  label: string;
+  target: number;
+  period: "daily" | "weekly";
+}
+
+export interface GoalProgress extends Goal {
+  current: number;
+  percentage: number;
+}
+
+export interface Insight {
+  label: string;
+  value: string;
+  detail?: string;
+  trend?: "up" | "down" | "neutral";
+}
+
 export interface AnalyticsData {
   daily: DayCount[];
   byType: TypeCount[];
@@ -62,4 +81,5 @@ export interface AnalyticsData {
   byDayOfWeek: { day: string; count: number }[];
   total: number;
   streak: StreakInfo;
+  insights: Insight[];
 }

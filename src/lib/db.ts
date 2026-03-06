@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import path from "path";
-import type { Contribution, ContributionInsert, DayCount, TypeCount, RepoCount } from "./types";
+import type { Contribution, ContributionInsert, DayCount, TypeCount, RepoCount, Goal } from "./types";
 
 const DB_PATH = path.join(process.cwd(), "data", "tracker.db");
 
@@ -43,6 +43,13 @@ function initSchema(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS goals (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      target INTEGER NOT NULL,
+      period TEXT NOT NULL DEFAULT 'daily'
     );
   `);
 }
@@ -235,4 +242,97 @@ export function getAllSettings(): Record<string, string> {
   const db = getDb();
   const rows = db.prepare("SELECT key, value FROM settings").all() as { key: string; value: string }[];
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+// Goals
+export function getGoals(): Goal[] {
+  const db = getDb();
+  return db.prepare("SELECT * FROM goals").all() as Goal[];
+}
+
+export function upsertGoal(goal: Goal): void {
+  const db = getDb();
+  db.prepare("INSERT OR REPLACE INTO goals (id, label, target, period) VALUES (?, ?, ?, ?)").run(goal.id, goal.label, goal.target, goal.period);
+}
+
+export function deleteGoal(id: string): boolean {
+  const db = getDb();
+  const result = db.prepare("DELETE FROM goals WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
+export function getTodayCount(): number {
+  const db = getDb();
+  const today = new Date().toISOString().split("T")[0];
+  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE DATE(created_at) = ?").get(today) as { count: number }).count;
+}
+
+export function getWeekCount(): number {
+  const db = getDb();
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE created_at >= ?").get(startOfWeek.toISOString()) as { count: number }).count;
+}
+
+export function getThisWeekDailyCounts(): DayCount[] {
+  const db = getDb();
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  const startStr = startOfWeek.toISOString().split("T")[0];
+  return db.prepare(`
+    SELECT DATE(created_at) as date, COUNT(*) as count
+    FROM contributions
+    WHERE DATE(created_at) >= ?
+    GROUP BY DATE(created_at)
+    ORDER BY date ASC
+  `).all(startStr) as DayCount[];
+}
+
+export function getLastWeekCount(): number {
+  const db = getDb();
+  const now = new Date();
+  const startOfLastWeek = new Date(now);
+  startOfLastWeek.setDate(now.getDate() - now.getDay() - 7);
+  const endOfLastWeek = new Date(now);
+  endOfLastWeek.setDate(now.getDate() - now.getDay());
+  return (db.prepare("SELECT COUNT(*) as count FROM contributions WHERE created_at >= ? AND created_at < ?").get(startOfLastWeek.toISOString(), endOfLastWeek.toISOString()) as { count: number }).count;
+}
+
+export function getContributionsForExport(options: {
+  type?: string;
+  repo?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+} = {}): Contribution[] {
+  const db = getDb();
+  const conditions: string[] = [];
+  const params: string[] = [];
+
+  if (options.type && options.type !== "all") {
+    conditions.push("type = ?");
+    params.push(options.type);
+  }
+  if (options.repo) {
+    conditions.push("repo = ?");
+    params.push(options.repo);
+  }
+  if (options.search) {
+    conditions.push("(title LIKE ? OR description LIKE ?)");
+    params.push(`%${options.search}%`, `%${options.search}%`);
+  }
+  if (options.startDate) {
+    conditions.push("created_at >= ?");
+    params.push(options.startDate);
+  }
+  if (options.endDate) {
+    conditions.push("created_at <= ?");
+    params.push(options.endDate);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return db.prepare(`SELECT * FROM contributions ${where} ORDER BY created_at DESC`).all(...params) as Contribution[];
 }

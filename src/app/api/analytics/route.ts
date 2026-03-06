@@ -5,8 +5,10 @@ import {
   getRepoCounts,
   getDayOfWeekCounts,
   getTotalCount,
+  getWeekCount,
+  getLastWeekCount,
 } from "@/lib/db";
-import type { AnalyticsData, StreakInfo } from "@/lib/types";
+import type { AnalyticsData, StreakInfo, Insight } from "@/lib/types";
 
 function calculateStreak(dailyCounts: { date: string; count: number }[]): StreakInfo {
   const today = new Date().toISOString().split("T")[0];
@@ -50,6 +52,92 @@ function calculateStreak(dailyCounts: { date: string; count: number }[]): Streak
   return { current, longest, todayCount };
 }
 
+function generateInsights(
+  daily: { date: string; count: number }[],
+  byType: { type: string; count: number }[],
+  byRepo: { repo: string; count: number }[],
+  byDayOfWeek: { day: string; count: number }[],
+  total: number,
+  streak: StreakInfo
+): Insight[] {
+  const insights: Insight[] = [];
+
+  // Most productive day of week
+  const bestDay = byDayOfWeek.reduce((a, b) => (b.count > a.count ? b : a), byDayOfWeek[0]);
+  if (bestDay && bestDay.count > 0) {
+    insights.push({
+      label: "Most Productive Day",
+      value: bestDay.day,
+      detail: `${bestDay.count} contributions on ${bestDay.day}s`,
+    });
+  }
+
+  // Weekly comparison
+  const thisWeek = getWeekCount();
+  const lastWeek = getLastWeekCount();
+  if (lastWeek > 0) {
+    const change = thisWeek - lastWeek;
+    const pct = Math.round((Math.abs(change) / lastWeek) * 100);
+    insights.push({
+      label: "vs Last Week",
+      value: `${change >= 0 ? "+" : ""}${change}`,
+      detail: `${pct}% ${change >= 0 ? "increase" : "decrease"} from last week`,
+      trend: change > 0 ? "up" : change < 0 ? "down" : "neutral",
+    });
+  } else if (thisWeek > 0) {
+    insights.push({
+      label: "This Week",
+      value: String(thisWeek),
+      detail: "contributions so far this week",
+      trend: "up",
+    });
+  }
+
+  // Top contribution type
+  if (byType.length > 0) {
+    const topType = byType[0];
+    const pct = Math.round((topType.count / total) * 100);
+    insights.push({
+      label: "Top Activity",
+      value: topType.type.charAt(0).toUpperCase() + topType.type.slice(1) + "s",
+      detail: `${pct}% of all contributions (${topType.count})`,
+    });
+  }
+
+  // Daily average (last 30 days)
+  const last30 = daily.slice(-30);
+  if (last30.length > 0) {
+    const totalLast30 = last30.reduce((sum, d) => sum + d.count, 0);
+    const avg = (totalLast30 / 30).toFixed(1);
+    insights.push({
+      label: "Daily Average",
+      value: avg,
+      detail: "contributions per day (last 30 days)",
+    });
+  }
+
+  // Most active repo this week
+  if (byRepo.length > 0) {
+    insights.push({
+      label: "Top Repository",
+      value: byRepo[0].repo,
+      detail: `${byRepo[0].count} contributions`,
+    });
+  }
+
+  // Streak insight
+  if (streak.current >= 3) {
+    insights.push({
+      label: "Streak Status",
+      value: `${streak.current} days`,
+      detail: streak.current >= streak.longest ? "New personal best!" : `${streak.longest - streak.current} days to beat your record`,
+      trend: "up",
+    });
+  }
+
+  return insights;
+}
+
 export async function GET() {
   const daily = getDailyCounts(365);
   const byType = getTypeCounts();
@@ -57,6 +145,7 @@ export async function GET() {
   const byDayOfWeek = getDayOfWeekCounts();
   const total = getTotalCount();
   const streak = calculateStreak(daily);
+  const insights = generateInsights(daily, byType, byRepo, byDayOfWeek, total, streak);
 
   const data: AnalyticsData = {
     daily,
@@ -65,6 +154,7 @@ export async function GET() {
     byDayOfWeek,
     total,
     streak,
+    insights,
   };
 
   return NextResponse.json(data);

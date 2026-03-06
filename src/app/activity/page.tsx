@@ -26,6 +26,7 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Download,
 } from "lucide-react";
 import type { Contribution, ContributionType } from "@/lib/types";
 import { typeConfig } from "@/lib/contribution-utils";
@@ -115,6 +116,15 @@ export default function ActivityPage() {
     toast.success(`Deleted "${item?.title || "contribution"}"`);
   };
 
+  const handleExport = (format: "csv" | "json") => {
+    const params = new URLSearchParams({ format });
+    if (typeFilter !== "all") params.set("type", typeFilter);
+    if (searchDebounced) params.set("search", searchDebounced);
+    if (repoFilter !== "all") params.set("repo", repoFilter);
+    window.open(`/api/export?${params}`, "_blank");
+    toast.success(`Exporting as ${format.toUpperCase()}`);
+  };
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -164,9 +174,23 @@ export default function ActivityPage() {
           )}
         </div>
 
-        <p className="text-sm text-muted-foreground">
-          {total} contribution{total !== 1 ? "s" : ""} found
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {total} contribution{total !== 1 ? "s" : ""} found
+          </p>
+          {total > 0 && (
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleExport("csv")}>
+                <Download className="h-3 w-3" />
+                CSV
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleExport("json")}>
+                <Download className="h-3 w-3" />
+                JSON
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Activity list */}
         {loading ? (

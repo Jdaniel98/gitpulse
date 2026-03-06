@@ -6,6 +6,7 @@ import { useAnalytics } from "@/hooks/use-contributions";
 import { typeColors } from "@/lib/contribution-utils";
 import { typeConfig } from "@/lib/contribution-utils";
 import type { ContributionType } from "@/lib/types";
+import { TrendingUp, TrendingDown, Minus, Lightbulb } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -56,6 +57,42 @@ export default function AnalyticsPage() {
     <>
       <Header title="Analytics" />
       <div className="space-y-6 p-6">
+        {/* Insights */}
+        {analytics.insights && analytics.insights.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Lightbulb className="h-4 w-4 text-yellow-500" />
+                Insights
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {analytics.insights.map((insight, i) => (
+                  <div key={i} className="flex items-start gap-3 rounded-lg border border-border p-3">
+                    <div className="mt-0.5">
+                      {insight.trend === "up" ? (
+                        <TrendingUp className="h-4 w-4 text-emerald-500" />
+                      ) : insight.trend === "down" ? (
+                        <TrendingDown className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <Minus className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{insight.label}</p>
+                      <p className="text-sm font-semibold">{insight.value}</p>
+                      {insight.detail && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">{insight.detail}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Contribution Trend */}
         <Card>
           <CardHeader className="pb-2">
