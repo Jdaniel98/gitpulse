@@ -330,6 +330,19 @@ export function getHourOfDayCounts(): { hour: number; count: number }[] {
   }));
 }
 
+export function getPunchCardData(): { dayOfWeek: number; hour: number; count: number }[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT
+      CAST(strftime('%w', created_at) AS INTEGER) as dayOfWeek,
+      CAST(strftime('%H', created_at) AS INTEGER) as hour,
+      COUNT(*) as count
+    FROM contributions
+    GROUP BY dayOfWeek, hour
+    ORDER BY dayOfWeek, hour
+  `).all() as { dayOfWeek: number; hour: number; count: number }[];
+}
+
 export function getDailyCountsByType(days: number = 365): { date: string; type: string; count: number }[] {
   const db = getDb();
   const startDate = new Date();

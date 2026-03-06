@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -254,6 +255,7 @@ export function CommandPalette() {
         showCloseButton={false}
         onKeyDown={handleKeyDown}
       >
+        <DialogTitle className="sr-only">Command Palette</DialogTitle>
         <div className="flex items-center border-b border-border px-3">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <Input

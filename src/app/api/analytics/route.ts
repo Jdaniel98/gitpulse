@@ -10,6 +10,7 @@ import {
   getMonthlyCounts,
   getHourOfDayCounts,
   getDailyCountsByType,
+  getPunchCardData,
 } from "@/lib/db";
 import type { AnalyticsData, StreakInfo, Insight } from "@/lib/types";
 
@@ -167,6 +168,8 @@ export async function GET() {
     ...Object.fromEntries([...typeSet].map((t) => [t, types[t] || 0])),
   }));
 
+  const punchCard = getPunchCardData();
+
   const data: AnalyticsData = {
     daily,
     byType,
@@ -175,6 +178,7 @@ export async function GET() {
     byHourOfDay,
     monthly,
     dailyByType,
+    punchCard,
     total,
     streak,
     insights,

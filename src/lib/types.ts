@@ -74,6 +74,12 @@ export interface Insight {
   trend?: "up" | "down" | "neutral";
 }
 
+export interface PunchCardCell {
+  dayOfWeek: number;
+  hour: number;
+  count: number;
+}
+
 export interface AnalyticsData {
   daily: DayCount[];
   byType: TypeCount[];
@@ -82,6 +88,7 @@ export interface AnalyticsData {
   byHourOfDay: { hour: number; count: number }[];
   monthly: { month: string; count: number }[];
   dailyByType: { date: string; [key: string]: string | number }[];
+  punchCard: PunchCardCell[];
   total: number;
   streak: StreakInfo;
   insights: Insight[];

@@ -9,6 +9,7 @@ import { typeColors } from "@/lib/contribution-utils";
 import { typeConfig } from "@/lib/contribution-utils";
 import type { ContributionType } from "@/lib/types";
 import { TrendingUp, TrendingDown, Minus, Lightbulb, Clock } from "lucide-react";
+import { PunchCard } from "@/components/analytics/punch-card";
 import {
   BarChart,
   Bar,
@@ -412,6 +413,9 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Punch Card */}
+        <PunchCard data={analytics.punchCard} />
 
         {/* Top Repos */}
         <Card>
