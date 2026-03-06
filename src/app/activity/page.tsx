@@ -129,16 +129,29 @@ export default function ActivityPage() {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    await fetch("/api/contributions", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: deleteTarget.id }),
-    });
-    setContributions((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+    const { id, title } = deleteTarget;
+    const snapshot = contributions;
+    const prevTotal = total;
+
+    // Optimistic update
+    setContributions((prev) => prev.filter((c) => c.id !== id));
     setTotal((prev) => prev - 1);
-    window.dispatchEvent(new Event("contributions-updated"));
-    toast.success(`Deleted "${deleteTarget.title}"`);
     setDeleteTarget(null);
+    toast.success(`Deleted "${title}"`);
+
+    try {
+      await fetch("/api/contributions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      window.dispatchEvent(new Event("contributions-updated"));
+    } catch {
+      // Rollback
+      setContributions(snapshot);
+      setTotal(prevTotal);
+      toast.error(`Failed to delete "${title}"`);
+    }
   };
 
   const handleExport = (format: "csv" | "json") => {
@@ -171,17 +184,30 @@ export default function ActivityPage() {
 
   const confirmBulkDelete = async () => {
     const ids = [...selected];
-    await fetch("/api/contributions", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    });
+    const count = ids.length;
+    const snapshot = contributions;
+    const prevTotal = total;
+
+    // Optimistic update
     setContributions((prev) => prev.filter((c) => !selected.has(c.id)));
-    setTotal((prev) => prev - ids.length);
-    toast.success(`Deleted ${ids.length} contribution${ids.length !== 1 ? "s" : ""}`);
+    setTotal((prev) => prev - count);
     setSelected(new Set());
     setBulkDeleteOpen(false);
-    window.dispatchEvent(new Event("contributions-updated"));
+    toast.success(`Deleted ${count} contribution${count !== 1 ? "s" : ""}`);
+
+    try {
+      await fetch("/api/contributions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      window.dispatchEvent(new Event("contributions-updated"));
+    } catch {
+      // Rollback
+      setContributions(snapshot);
+      setTotal(prevTotal);
+      toast.error(`Failed to delete ${count} contributions`);
+    }
   };
 
   const handleBulkExport = (format: "csv" | "json") => {

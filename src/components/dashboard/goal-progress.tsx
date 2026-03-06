@@ -56,27 +56,46 @@ export function GoalProgress() {
 
   const handleAdd = async () => {
     if (!newGoal.label.trim() || !newGoal.target) return;
-    await fetch("/api/goals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newGoal),
-    });
-    toast.success(`Goal "${newGoal.label}" added`);
+    const label = newGoal.label.trim();
+
+    // Optimistic: close dialog and show success immediately
     setNewGoal({ label: "", target: "5", period: "daily" });
     setDialogOpen(false);
-    fetchGoals();
+    toast.success(`Goal "${label}" added`);
+
+    try {
+      await fetch("/api/goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...newGoal, label }),
+      });
+      fetchGoals();
+    } catch {
+      toast.error(`Failed to add goal "${label}"`);
+      fetchGoals();
+    }
   };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    await fetch("/api/goals", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: deleteTarget.id }),
-    });
-    toast.success(`Goal "${deleteTarget.label}" removed`);
+    const { id, label } = deleteTarget;
+    const snapshot = goals;
+
+    // Optimistic: remove from list immediately
+    setGoals((prev) => prev.filter((g) => g.id !== id));
     setDeleteTarget(null);
-    fetchGoals();
+    toast.success(`Goal "${label}" removed`);
+
+    try {
+      await fetch("/api/goals", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch {
+      setGoals(snapshot);
+      toast.error(`Failed to remove goal "${label}"`);
+    }
   };
 
   if (loading) {

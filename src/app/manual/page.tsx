@@ -40,27 +40,32 @@ export default function ManualEntryPage() {
     e.preventDefault();
     if (!title.trim()) return;
 
+    const savedTitle = title.trim();
+    const payload = {
+      type,
+      title: savedTitle,
+      description: description.trim() || undefined,
+      repo: repo.trim() || undefined,
+      source: "manual",
+      created_at: new Date(date + "T12:00:00").toISOString(),
+    };
+
+    // Optimistic: clear form and show success immediately
     setSubmitting(true);
+    setTitle("");
+    setDescription("");
+    setRepo("");
+    toast.success(`"${savedTitle}" added successfully`);
+
     try {
       await fetch("/api/contributions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          title: title.trim(),
-          description: description.trim() || undefined,
-          repo: repo.trim() || undefined,
-          source: "manual",
-          created_at: new Date(date + "T12:00:00").toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
-      toast.success(`"${title.trim()}" added successfully`);
-      setTitle("");
-      setDescription("");
-      setRepo("");
       window.dispatchEvent(new Event("contributions-updated"));
     } catch {
-      toast.error("Failed to save contribution");
+      toast.error(`Failed to save "${savedTitle}"`);
     } finally {
       setSubmitting(false);
     }
